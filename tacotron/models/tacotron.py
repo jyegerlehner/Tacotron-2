@@ -1,4 +1,4 @@
-import tensorflow as tf 
+import tensorflow as tf
 from tacotron.utils.symbols import symbols
 from tacotron.utils.infolog import log
 from tacotron.models.helpers import TacoTrainingHelper, TacoTestHelper
@@ -72,13 +72,14 @@ class Tacotron():
 			prenet = Prenet(is_training, layer_sizes=hp.prenet_layers, scope='decoder_prenet')
 			#Attention Mechanism
 			attention_mechanism = LocationSensitiveAttention(hp.attention_dim, encoder_outputs,
-				mask_encoder=hp.mask_encoder, memory_sequence_length=input_lengths, smoothing=hp.smoothing, 
+				mask_encoder=hp.mask_encoder, memory_sequence_length=input_lengths, smoothing=hp.smoothing,
 				cumulate_weights=hp.cumulative_weights)
 			#Decoder LSTM Cells
 			decoder_lstm = DecoderRNN(is_training, layers=hp.decoder_layers,
 				size=hp.decoder_lstm_units, zoneout=hp.tacotron_zoneout_rate, scope='decoder_lstm')
 			#Frames Projection layer
-			frame_projection = FrameProjection(hp.num_mels * hp.outputs_per_step, scope='linear_transform')
+#			frame_projection = FrameProjection(hp.num_mels * hp.outputs_per_step, scope='linear_transform')
+			output_projection = FrameProjection(hp.decoder_output_channels, scope='linear_transform')
 			#<stop_token> projection layer
 			stop_projection = StopProjection(is_training, scope='stop_token_projection')
 
@@ -88,7 +89,7 @@ class Tacotron():
 				prenet,
 				attention_mechanism,
 				decoder_lstm,
-				frame_projection,
+				output_projection,
 				stop_projection,
 				mask_finished=hp.mask_finished)
 
@@ -114,39 +115,39 @@ class Tacotron():
 				maximum_iterations=max_iters)
 
 
-			# Reshape outputs to be one output per entry 
+			# Reshape outputs to be one output per entry
 			#==> [batch_size, non_reduced_decoder_steps (decoder_steps * r), num_mels]
-			decoder_output = tf.reshape(frames_prediction, [batch_size, -1, hp.num_mels])
+#			decoder_output = tf.reshape(frames_prediction, [batch_size, -1, hp.num_mels])
+			decoder_output = tf.reshape(frames_prediction, [batch_size, -1, hp.decoder_output_channels])
 			stop_token_prediction = tf.reshape(stop_token_prediction, [batch_size, -1])
 
-		
+
 			#Postnet
-			postnet = Postnet(is_training, kernel_size=hp.postnet_kernel_size, 
-				channels=hp.postnet_channels, scope='postnet_convolutions')
+			postnet = Postnet(is_training, kernel_size=hp.postnet_kernel_size,
+				channels=decoder_output.shape[-1], scope='postnet_convolutions')
 
 			#Compute residual using post-net ==> [batch_size, decoder_steps * r, postnet_channels]
 			residual = postnet(decoder_output)
 
-			#Project residual to same dimension as mel spectrogram 
-			#==> [batch_size, decoder_steps * r, num_mels]
-			residual_projection = FrameProjection(hp.num_mels, scope='postnet_projection')
-			projected_residual = residual_projection(residual)
-
-
 			#Compute the mel spectrogram
-			mel_outputs = decoder_output + projected_residual
-
+			#Project residual to same dimension as mel spectrogram
+			#==> [batch_size, decoder_steps * r, num_mels]
+			mel_projection = FrameProjection(hp.num_mels, scope='postnet_projection')
+			mel_outputs = mel_projection(decoder_output + residual)
 
 			if post_condition:
-				#Based on https://github.com/keithito/tacotron/blob/tacotron2-work-in-progress/models/tacotron.py
-				#Post-processing Network to map mels to linear spectrograms using same architecture as the encoder
-				post_processing_cell = TacotronEncoderCell(
-				EncoderConvolutions(is_training, kernel_size=hp.enc_conv_kernel_size,
-					channels=hp.enc_conv_channels, scope='post_processing_convolutions'),
-				EncoderRNN(is_training, size=hp.encoder_lstm_units,
-					zoneout=hp.tacotron_zoneout_rate, scope='post_processing_LSTM'))
+#				#Based on https://github.com/keithito/tacotron/blob/tacotron2-work-in-progress/models/tacotron.py
+#				#Post-processing Network to map mels to linear spectrograms using same architecture as the encoder
+#				post_processing_cell = TacotronEncoderCell(
+#				EncoderConvolutions(is_training, kernel_size=hp.enc_conv_kernel_size,
+#					channels=hp.enc_conv_channels, scope='post_processing_convolutions'),
+#				EncoderRNN(is_training, size=hp.encoder_lstm_units,
+#					zoneout=hp.tacotron_zoneout_rate, scope='post_processing_LSTM'))
 
-				expand_outputs = post_processing_cell(mel_outputs)
+#				expand_outputs = post_processing_cell(mel_outputs)
+				linear_postnet = Postnet(is_training, kernel_size=hp.postnet_kernel_size,
+									channels=decoder_output.shape[-1], scope='linear_postnet')
+				expand_outputs = linear_postnet(decoder_output)
 				linear_outputs = FrameProjection(hp.num_freq, scope='post_processing_projection')(expand_outputs)
 
 			#Grab alignments from the final decoder state
@@ -169,8 +170,9 @@ class Tacotron():
 			log('  encoder out:              {}'.format(encoder_outputs.shape))
 			log('  decoder out:              {}'.format(decoder_output.shape))
 			log('  residual out:             {}'.format(residual.shape))
-			log('  projected residual out:   {}'.format(projected_residual.shape))
+#			log('  projected residual out:   {}'.format(projected_residual.shape))
 			log('  mel out:                  {}'.format(mel_outputs.shape))
+			log('  frames_prediction:        {}'.format(frames_prediction.shape))
 			if post_condition:
 				log('  linear out:               {}'.format(linear_outputs.shape))
 			log('  <stop_token> out:         {}'.format(stop_token_prediction.shape))
@@ -182,7 +184,8 @@ class Tacotron():
 			hp = self._hparams
 
 			# Compute loss of predictions before postnet
-			before = tf.losses.mean_squared_error(self.mel_targets, self.decoder_output)
+#			before = tf.losses.mean_squared_error(self.mel_targets, self.decoder_output)
+			before = 0.0
 			# Compute loss after postnet
 			after = tf.losses.mean_squared_error(self.mel_targets, self.mel_outputs)
 			#Compute <stop_token> loss (for learning dynamic generation stop)
@@ -266,9 +269,9 @@ class Tacotron():
 		hp = self._hparams
 
 		#Compute natural exponential decay
-		lr = tf.train.exponential_decay(init_lr, 
+		lr = tf.train.exponential_decay(init_lr,
 			global_step - hp.tacotron_start_decay, #lr = 1e-3 at step 50k
-			self.decay_steps, 
+			self.decay_steps,
 			self.decay_rate, #lr = 1e-5 around step 300k
 			name='exponential_decay')
 

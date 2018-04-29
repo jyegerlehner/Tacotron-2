@@ -1,9 +1,9 @@
-import numpy as np 
+import numpy as np
 from datetime import datetime
 import os
 import subprocess
 import time
-import tensorflow as tf 
+import tensorflow as tf
 import traceback
 import argparse
 
@@ -121,11 +121,11 @@ def train(log_dir, args):
 			#Training loop
 			while not coord.should_stop():
 				start_time = time.time()
-				step, loss, opt = sess.run([global_step, model.loss, model.optimize])
+				step, loss, opt, linear_loss, after_loss = sess.run([global_step, model.loss, model.optimize, model.linear_loss, model.after_loss])
 				time_window.append(time.time() - start_time)
 				loss_window.append(loss)
-				message = 'Step {:7d} [{:.3f} sec/step, loss={:.5f}, avg_loss={:.5f}]'.format(
-					step, time_window.average, loss, loss_window.average)
+				message = 'Step {:7d} [{:.3f} sec/step, loss={:.5f}, avg_loss={:.5f}, lin loss={:4f}, after loss={:4f}]'.format(
+					step, time_window.average, loss, loss_window.average, linear_loss, after_loss)
 				log(message, end='\r')
 
 				if loss > 100 or np.isnan(loss):
@@ -135,13 +135,13 @@ def train(log_dir, args):
 				if step % args.summary_interval == 0:
 					log('\nWriting summary at step: {}'.format(step))
 					summary_writer.add_summary(sess.run(stats), step)
-				
+
 				if step % args.checkpoint_interval == 0:
 					with open(os.path.join(log_dir,'step_counter.txt'), 'w') as file:
 						file.write(str(step))
 					log('Saving checkpoint to: {}-{}'.format(checkpoint_path, step))
 					saver.save(sess, checkpoint_path, global_step=step)
-					
+
 					log('Saving alignment, Mel-Spectrograms and griffin-lim inverted waveform..')
 					if hparams.predict_linear:
 						input_seq, mel_prediction, linear_prediction, alignment, target = sess.run([
