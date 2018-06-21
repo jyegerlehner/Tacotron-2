@@ -174,7 +174,8 @@ class ZoneoutLSTMCell(RNNCell):
                     c = binary_mask_cell * c_prev + \
                         binary_mask_cell_complement * c_temp
                 else:
-                    c = c_temp
+                    #c = c_temp
+                    c = c_temp * (1-self.zoneout_factor_cell) + c_prev * self.zoneout_factor_cell
             else:
                 c_temp = c_prev * tf.sigmoid(f + self.forget_bias) + \
                     tf.sigmoid(i) * self.activation(j)
@@ -182,7 +183,8 @@ class ZoneoutLSTMCell(RNNCell):
                     c = binary_mask_cell * c_prev + \
                         binary_mask_cell_complement * c_temp
                 else:
-                    c = c_temp
+                    #c = c_temp
+                    c = c_temp * (1-self.zoneout_factor_cell) + c_prev * self.zoneout_factor_cell
 
             if self.cell_clip is not None:
                 c = tf.clip_by_value(c, -self.cell_clip, self.cell_clip)
@@ -194,14 +196,17 @@ class ZoneoutLSTMCell(RNNCell):
                     h = binary_mask_output * h_prev + \
                         binary_mask_output_complement * h_temp
                 else:
-                    h = h_temp
+                    #h = h_temp
+                    h = h_temp * (1-self.zoneout_factor_output) + h_prev * self.zoneout_factor_output
+
             else:
                 h_temp = tf.sigmoid(o) * self.activation(c)
                 if self.is_training and self.zoneout_factor_output > 0.0:
                     h = binary_mask_output * h_prev + \
                         binary_mask_output_complement * h_temp
                 else:
-                    h = h_temp
+                    #h = h_temp
+                    h = h_temp * (1-self.zoneout_factor_output) + h_prev * self.zoneout_factor_output
 
             # apply prejection
             if self.num_proj is not None:

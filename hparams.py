@@ -114,7 +114,7 @@ hparams = tf.contrib.training.HParams(
 	tacotron_zoneout_rate = 0.1, #zoneout rate for all LSTM cells in the network
 	tacotron_dropout_rate = 0.5, #dropout rate for all convolutional layers + prenet
 
-	tacotron_teacher_forcing_ratio = 1., #Value from [0., 1.], 0.=0%, 1.=100%, determines the % of times we force next decoder inputs
+	tacotron_teacher_forcing_ratio = 0.9, #1., #Value from [0., 1.], 0.=0%, 1.=100%, determines the % of times we force next decoder inputs
 
 
 	#Wavenet Training TODO
