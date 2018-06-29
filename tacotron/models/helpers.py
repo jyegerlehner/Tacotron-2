@@ -39,20 +39,20 @@ class TacoTestHelper(Helper):
 			#A sequence is finished when the output probability is > 0.5
 			finished = tf.cast(tf.round(stop_token_prediction), tf.bool)
 
-			#Since we are predicting r frames at each step, two modes are 
+			#Since we are predicting r frames at each step, two modes are
 			#then possible:
 			#	Stop when the model outputs a p > 0.5 for any frame between r frames (Recommended)
 			#	Stop when the model outputs a p > 0.5 for all r frames (Safer)
 			#Note:
 			#	With enough training steps, the model should be able to predict when to stop correctly
 			#	and the use of stop_at_any = True would be recommended. If however the model didn't
-			#	learn to stop correctly yet, (stops too soon) one could choose to use the safer option 
+			#	learn to stop correctly yet, (stops too soon) one could choose to use the safer option
 			#	to get a correct synthesis
 			if self.stop_at_any:
 				finished = tf.reduce_any(finished) #Recommended
 			else:
 				finished = tf.reduce_all(finished) #Safer option
-			
+
 			# Feed last output frame as next input. outputs is [N, output_dim * r]
 			next_inputs = outputs[:, -self._output_dim:]
 			next_state = state
@@ -146,10 +146,12 @@ def _teacher_forcing_ratio_decay(init_tfr, global_step, hparams):
 		# clip by minimal teacher forcing ratio value (step >~ 280k)
 		#################################################################
 		#Compute natural cosine decay
-		tfr = tf.train.cosine_decay(init_tfr,
+		#tfr = tf.train.linear_cosine_decay(init_tfr,
+		tfr = tf.train.inverse_time_decay (init_tfr,
 			global_step=global_step - hparams.tacotron_teacher_forcing_start_decay, #tfr = 1 at step 10k
 			decay_steps=hparams.tacotron_teacher_forcing_decay_steps, #tfr = 0 at step ~280k
-			alpha=hparams.tacotron_teacher_forcing_decay_alpha, #tfr = 0% of init_tfr as final value
+#			alpha=hparams.tacotron_teacher_forcing_decay_alpha, #tfr = 0% of init_tfr as final value
+			decay_rate=hparams.tacotron_teacher_forcing_decay_alpha, #tfr = 0% of init_tfr as final value
 			name='tfr_cosine_decay')
 
 		#force teacher forcing ratio to take initial value when global step < start decay step.

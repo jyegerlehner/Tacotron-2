@@ -169,7 +169,29 @@ def train(log_dir, args, hparams):
 			#Training loop
 			while not coord.should_stop() and step < args.tacotron_train_steps:
 				start_time = time.time()
-				step, loss, opt, linear_loss, after_loss = sess.run([global_step, model.loss, model.optimize, model.linear_loss, model.after_loss])
+				linear_loss = 0.0
+
+				# =================
+				shapes = [model.inputs_shape,
+							model.frames_prediction_shape,
+							model.decoder_output_shape,
+							model.mel_outputs_shape,
+							model.mel_targets_shape]
+				inputs_shape, frame_pred_shape, decoder_out_shape, mel_outs_shape, mel_targets_shape= sess.run(shapes)
+				print('inputs_shape:{}, frame_pred_shape:{}, decoder_out_shape:{}, mel_outs_shape:{}, mel_targes_shape:{}'.format(
+						inputs_shape, frame_pred_shape, decoder_out_shape, mel_outs_shape, mel_targets_shape))
+
+				if model.linear_loss is not None:
+					expand_outs_shape, lin_outs_shape = sess.run([model.expand_outputs_shape,
+																	model.linear_outputs_shape])
+					print('expand_outputs_shape:{}, linear_outs_shape:{}'.format(expand_outs_shape, lin_outs_shape))
+				#====================
+
+
+				if model.linear_loss is not None:
+					step, loss, opt, linear_loss, after_loss = sess.run([global_step, model.loss, model.optimize, model.linear_loss, model.after_loss])
+				else:
+					step, loss, opt, after_loss = sess.run([global_step, model.loss, model.optimize, model.after_loss])
 				time_window.append(time.time() - start_time)
 				loss_window.append(loss)
 				message = 'Step {:7d} [{:.3f} sec/step, loss={:.5f}, avg_loss={:.5f}, lin loss={:4f}, after loss={:4f}]'.format(

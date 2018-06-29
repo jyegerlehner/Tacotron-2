@@ -1,5 +1,5 @@
 import argparse
-import tensorflow as tf 
+import tensorflow as tf
 from tacotron.train import tacotron_train
 from wavenet_vocoder.train import wavenet_train
 from tacotron.synthesize import tacotron_synthesize
@@ -83,7 +83,7 @@ def train(args, log_dir, hparams):
 
 def main():
 	parser = argparse.ArgumentParser()
-	parser.add_argument('--base_dir', default='')
+	parser.add_argument('--base_dir', default=os.path.expanduser('~/tacotron2'))
 	parser.add_argument('--hparams', default='',
 		help='Hyperparameter overrides as a comma-separated list of name=value pairs')
 	parser.add_argument('--tacotron_input', default='training_data/train.txt')

@@ -128,8 +128,8 @@ class Tacotron():
 
 
 			#Postnet
-			postnet = Postnet(is_training, channels=decoder_output.shape[-1], hparams=hp,
-								scope='postnet_convolutions')
+			postnet = Postnet(is_training, channels=hp.decoder_output_channels, #int(decoder_output.shape[-1]),
+								hparams=hp, scope='postnet_convolutions')
 
 			#Compute residual using post-net ==> [batch_size, decoder_steps * r, postnet_channels]
 			residual = postnet(decoder_output)
@@ -181,8 +181,21 @@ class Tacotron():
 			if post_condition:
 				self.linear_outputs = linear_outputs
 				self.linear_targets = linear_targets
+				if hp.predict_linear:
+					self.linear_targets_shape = tf.shape(self.linear_targets)
 			self.mel_targets = mel_targets
 			self.targets_lengths = targets_lengths
+
+			self.inputs_shape = tf.shape(inputs)
+			self.frames_prediction_shape=tf.shape(frames_prediction)
+			self.mel_outputs_shape=tf.shape(mel_outputs)
+			self.mel_targets_shape=tf.shape(mel_targets)
+			self.decoder_output_shape = tf.shape(decoder_output)
+			if post_condition:
+				self.expand_outputs_shape = tf.shape(expand_outputs)
+				self.linear_outputs_shape = tf.shape(linear_outputs)
+
+
 			log('Initialized Tacotron model. Dimensions (? = dynamic shape): ')
 			log('  Train mode:               {}'.format(is_training))
 			log('  Eval mode:                {}'.format(is_evaluating))
@@ -235,7 +248,7 @@ class Tacotron():
 				n_priority_freq = int(2000 / (hp.sample_rate * 0.5) * hp.num_mels)
 				linear_loss = 0.5 * tf.reduce_mean(l1) + 0.5 * tf.reduce_mean(l1[:,:,0:n_priority_freq])
 			else:
-				linear_loss = 0.
+				linear_loss = None
 
 			# Compute the regularization weight
 			if hp.tacotron_scale_regularization:
@@ -256,7 +269,9 @@ class Tacotron():
 			self.regularization_loss = regularization
 			self.linear_loss = linear_loss
 
-			self.loss = self.before_loss + self.after_loss + self.stop_token_loss + self.regularization_loss + self.linear_loss
+			self.loss = self.before_loss + self.after_loss + self.stop_token_loss + self.regularization_loss
+			if self.linear_loss is not None:
+				self.loss += self.linear_loss
 
 	def add_optimizer(self, global_step):
 		'''Adds optimizer. Sets "gradients" and "optimize" fields. add_loss must have been called.

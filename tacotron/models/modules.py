@@ -1,8 +1,11 @@
 import tensorflow as tf
 
-
 def conv1d(inputs, kernel_size, channels, activation, is_training, drop_rate, scope):
 	with tf.variable_scope(scope):
+		print('conv1d:===============')
+		print('inputs:{}'.format(inputs))
+		print('channels:{}'.format(channels))
+		print('kernel_size:{}'.format(kernel_size))
 		conv1d_output = tf.layers.conv1d(
 			inputs,
 			filters=channels,
@@ -25,7 +28,7 @@ class ZoneoutLSTMCell(tf.nn.rnn_cell.RNNCell):
 
 	Many thanks to @Ondal90 for pointing this out. You sir are a hero!
 	'''
-	def __init__(self, num_units, is_training, zoneout_factor_cell=0., zoneout_factor_output=0., state_is_tuple=True, name=None):
+	def __init__(self, num_units, is_training, zoneout_factor_cell=0., zoneout_factor_output=0., state_is_tuple=True):
 		'''Initializer with possibility to set different zoneout values for cell/hidden states.
 		'''
 		zm = min(zoneout_factor_output, zoneout_factor_cell)
@@ -34,7 +37,7 @@ class ZoneoutLSTMCell(tf.nn.rnn_cell.RNNCell):
 		if zm < 0. or zs > 1.:
 			raise ValueError('One/both provided Zoneout factors are not in [0, 1]')
 
-		self._cell = tf.nn.rnn_cell.LSTMCell(num_units, state_is_tuple=state_is_tuple, name=name)
+		self._cell = tf.nn.rnn_cell.LSTMCell(num_units, state_is_tuple=state_is_tuple)
 		self._zoneout_cell = zoneout_factor_cell
 		self._zoneout_outputs = zoneout_factor_output
 		self.is_training = is_training
@@ -131,14 +134,14 @@ class EncoderRNN:
 		#Create forward LSTM Cell
 		self._fw_cell = ZoneoutLSTMCell(size, is_training,
 			zoneout_factor_cell=zoneout,
-			zoneout_factor_output=zoneout,
-			name='encoder_fw_LSTM')
+			zoneout_factor_output=zoneout)
+#			name='encoder_fw_LSTM')
 
 		#Create backward LSTM Cell
 		self._bw_cell = ZoneoutLSTMCell(size, is_training,
 			zoneout_factor_cell=zoneout,
-			zoneout_factor_output=zoneout,
-			name='encoder_bw_LSTM')
+			zoneout_factor_output=zoneout)
+#			name='encoder_bw_LSTM')
 
 	def __call__(self, inputs, input_lengths):
 		with tf.variable_scope(self.scope):
@@ -209,8 +212,9 @@ class DecoderRNN:
 		#Create a set of LSTM layers
 		self.rnn_layers = [ZoneoutLSTMCell(size, is_training,
 			zoneout_factor_cell=zoneout,
-			zoneout_factor_output=zoneout,
-			name='decoder_LSTM_{}'.format(i+1)) for i in range(layers)]
+			zoneout_factor_output=zoneout)
+#			name='decoder_LSTM_{}'.format(i+1))
+			for i in range(layers)]
 
 		self._cell = tf.contrib.rnn.MultiRNNCell(self.rnn_layers, state_is_tuple=True)
 
@@ -293,8 +297,10 @@ class Postnet:
 		super(Postnet, self).__init__()
 		self.is_training = is_training
 
+		print('Postnet channels:{}'.format(channels))
+
 		self.kernel_size = hparams.postnet_kernel_size
-		self.channels = channels, #hparams.postnet_channels
+		self.channels = channels #hparams.postnet_channels
 		self.activation = activation
 		self.scope = 'postnet_convolutions' if scope is None else scope
 		self.postnet_num_layers = hparams.postnet_num_layers
@@ -303,11 +309,25 @@ class Postnet:
 	def __call__(self, inputs):
 		with tf.variable_scope(self.scope):
 			x = inputs
+
+			print('before call:========')
+			print('x:{}'.format(x))
+			print('kernel size:{}'.format(self.kernel_size))
+			print('channels:{}'.format(self.channels))
+
 			for i in range(self.postnet_num_layers - 1):
 				x = conv1d(x, self.kernel_size, self.channels, self.activation,
 					self.is_training, self.drop_rate, 'conv_layer_{}_'.format(i + 1)+self.scope)
-			x = conv1d(x, self.kernel_size, self.channels, lambda _: _, self.is_training, self.drop_rate,
-				'conv_layer_{}_'.format(5)+self.scope)
+
+#			def conv1d(inputs, kernel_size, channels, activation, is_training, drop_rate, scope):
+
+			x = conv1d(inputs=x,
+						kernel_size=self.kernel_size,
+						channels=self.channels,
+						activation=lambda _: _,
+						is_training=self.is_training,
+						drop_rate=self.drop_rate,
+						scope='conv_layer_{}_'.format(5)+self.scope)
 		return x
 
 def _round_up_tf(x, multiple):
