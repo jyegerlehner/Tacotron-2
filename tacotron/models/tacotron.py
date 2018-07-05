@@ -123,12 +123,17 @@ class Tacotron():
 			# Reshape outputs to be one output per entry
 			#==> [batch_size, non_reduced_decoder_steps (decoder_steps * r), num_mels]
 #			decoder_output = tf.reshape(frames_prediction, [batch_size, -1, hp.num_mels])
-			decoder_output = tf.reshape(frames_prediction, [batch_size, -1, hp.decoder_output_channels])
+			decoder_output_reduced = tf.reshape(frames_prediction, [batch_size, -1, hp.decoder_output_channels])
 			stop_token_prediction = tf.reshape(stop_token_prediction, [batch_size, -1])
 
+			reduced_shape = tf.shape(decoder_output_reduced)
+			unreduced_shape = [reduced_shape[0], reduced_shape[1]*hp.outputs_per_step, hp.decoder_output_channels//hp.outputs_per_step]
+			# Reshape to be output per entry:
+			decoder_output = tf.reshape(decoder_output_reduced, unreduced_shape) #tf.shape(linear_targets))
+										#[batch_size, tf.shape(linear_targets)[1], tf.shape(linear_targets)[2]])
 
 			#Postnet
-			postnet = Postnet(is_training, channels=hp.decoder_output_channels, #int(decoder_output.shape[-1]),
+			postnet = Postnet(is_training, decoder_output.shape[-1], #channels=hp.decoder_output_channels, #,
 								hparams=hp, scope='postnet_convolutions')
 
 			#Compute residual using post-net ==> [batch_size, decoder_steps * r, postnet_channels]
@@ -164,7 +169,7 @@ class Tacotron():
 
 #				expand_outputs = post_processing_cell(mel_outputs)
 #>>>>>>> master
-				linear_outputs = FrameProjection(hp.num_freq, scope='post_processing_projection')(expand_outputs)
+				linear_outputs = FrameProjection(hp.num_freq, scope='post_processing_projection')(expand_outputs + decoder_output)
 
 			#Grab alignments from the final decoder state
 			alignments = tf.transpose(final_decoder_state.alignment_history.stack(), [1, 2, 0])

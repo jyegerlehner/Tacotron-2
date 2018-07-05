@@ -172,19 +172,20 @@ def train(log_dir, args, hparams):
 				linear_loss = 0.0
 
 				# =================
-				shapes = [model.inputs_shape,
-							model.frames_prediction_shape,
-							model.decoder_output_shape,
-							model.mel_outputs_shape,
-							model.mel_targets_shape]
-				inputs_shape, frame_pred_shape, decoder_out_shape, mel_outs_shape, mel_targets_shape= sess.run(shapes)
-				print('inputs_shape:{}, frame_pred_shape:{}, decoder_out_shape:{}, mel_outs_shape:{}, mel_targes_shape:{}'.format(
-						inputs_shape, frame_pred_shape, decoder_out_shape, mel_outs_shape, mel_targets_shape))
+#				shapes = [model.inputs_shape,
+#							model.frames_prediction_shape,
+#							model.decoder_output_shape,
+#							model.mel_outputs_shape,
+#							model.mel_targets_shape]
+#				inputs_shape, frame_pred_shape, decoder_out_shape, mel_outs_shape, mel_targets_shape= sess.run(shapes)
+#				print('inputs_shape:{}, frame_pred_shape:{}, decoder_out_shape:{}, mel_outs_shape:{}, mel_targes_shape:{}'.format(
+#						inputs_shape, frame_pred_shape, decoder_out_shape, mel_outs_shape, mel_targets_shape))
 
-				if model.linear_loss is not None:
-					expand_outs_shape, lin_outs_shape = sess.run([model.expand_outputs_shape,
-																	model.linear_outputs_shape])
-					print('expand_outputs_shape:{}, linear_outs_shape:{}'.format(expand_outs_shape, lin_outs_shape))
+#				if model.linear_loss is not None:
+#					expand_outs_shape, lin_outs_shape, lin_target_shape = sess.run([model.expand_outputs_shape,
+#																	model.linear_outputs_shape,
+#																	model.linear_targets_shape])
+#					print('expand_outputs_shape:{}, linear_outs_shape:{}, linear_targets:{}'.format(expand_outs_shape, lin_outs_shape, lin_target_shape ))
 				#====================
 
 
@@ -211,7 +212,7 @@ def train(log_dir, args, hparams):
 					log('\nRunning evaluation at step {}'.format(step))
 
 					eval_losses = []
-					before_losses = []
+#					before_losses = []
 					after_losses = []
 					stop_token_losses = []
 					linear_losses = []
@@ -219,13 +220,28 @@ def train(log_dir, args, hparams):
 
 					if hparams.predict_linear:
 						for i in tqdm(range(feeder.test_steps)):
-							eloss, before_loss, after_loss, stop_token_loss, linear_loss, mel_p, mel_t, t_len, align, lin_p = sess.run(
-								[eval_model.loss, eval_model.before_loss, eval_model.after_loss,
-								eval_model.stop_token_loss, eval_model.linear_loss, eval_model.mel_outputs[0],
-								eval_model.mel_targets[0], eval_model.targets_lengths[0],
-								eval_model.alignments[0], eval_model.linear_outputs[0]])
+							(eloss,
+#							before_loss, \
+							after_loss,
+							stop_token_loss,
+							linear_loss,
+							mel_p,
+							mel_t,
+							t_len,
+							align,
+							lin_p) = sess.run(
+								[eval_model.loss,
+#								 eval_model.before_loss,
+								 eval_model.after_loss,
+								 eval_model.stop_token_loss,
+								 eval_model.linear_loss,
+								 eval_model.mel_outputs[0],
+								 eval_model.mel_targets[0],
+								 eval_model.targets_lengths[0],
+								 eval_model.alignments[0],
+								 eval_model.linear_outputs[0]])
 							eval_losses.append(eloss)
-							before_losses.append(before_loss)
+#							before_losses.append(before_loss)
 							after_losses.append(after_loss)
 							stop_token_losses.append(stop_token_loss)
 							linear_losses.append(linear_loss)
@@ -240,12 +256,13 @@ def train(log_dir, args, hparams):
 								eval_model.stop_token_loss, eval_model.mel_outputs[0], eval_model.mel_targets[0],
 								eval_model.targets_lengths[0], eval_model.alignments[0]])
 							eval_losses.append(eloss)
-							before_losses.append(before_loss)
+#							before_losses.append(before_loss)
 							after_losses.append(after_loss)
 							stop_token_losses.append(stop_token_loss)
 
 					eval_loss = sum(eval_losses) / len(eval_losses)
-					before_loss = sum(before_losses) / len(before_losses)
+#					before_loss = sum(before_losses) / len(before_losses)
+					before_loss = 0.0
 					after_loss = sum(after_losses) / len(after_losses)
 					stop_token_loss = sum(stop_token_losses) / len(stop_token_losses)
 
@@ -265,38 +282,37 @@ def train(log_dir, args, hparams):
 					log('Writing eval summary!')
 					add_eval_stats(summary_writer, step, linear_loss, before_loss, after_loss, stop_token_loss, eval_loss)
 
-
 				if step % args.checkpoint_interval == 0 or step == args.tacotron_train_steps:
 					#Save model and current global step
 					saver.save(sess, checkpoint_path, global_step=global_step)
 
 					log('\nSaving alignment, Mel-Spectrograms and griffin-lim inverted waveform..')
 
-				if hparams.predict_linear:
-					input_seq, mel_prediction, linear_prediction, alignment, target, target_length = sess.run([
-						model.inputs[0],
-						model.mel_outputs[0],
-						model.linear_outputs[0],
-						model.alignments[0],
-						model.mel_targets[0],
-						model.targets_lengths[0],
-						])
+					if hparams.predict_linear:
+						input_seq, mel_prediction, linear_prediction, alignment, target, target_length = sess.run([
+							model.inputs[0],
+							model.mel_outputs[0],
+							model.linear_outputs[0],
+							model.alignments[0],
+							model.mel_targets[0],
+							model.targets_lengths[0],
+							])
 
-					#save predicted linear spectrogram to disk (debug)
-					linear_filename = 'linear-prediction-step-{}.npy'.format(step)
-					np.save(os.path.join(linear_dir, linear_filename), linear_prediction.T, allow_pickle=False)
+						#save predicted linear spectrogram to disk (debug)
+						linear_filename = 'linear-prediction-step-{}.npy'.format(step)
+						np.save(os.path.join(linear_dir, linear_filename), linear_prediction.T, allow_pickle=False)
 
-					#save griffin lim inverted wav for debug (linear -> wav)
-					wav = audio.inv_linear_spectrogram(linear_prediction.T, hparams)
-					audio.save_wav(wav, os.path.join(wav_dir, 'step-{}-wave-from-linear.wav'.format(step)), sr=hparams.sample_rate)
+						#save griffin lim inverted wav for debug (linear -> wav)
+						wav = audio.inv_linear_spectrogram(linear_prediction.T, hparams)
+						audio.save_wav(wav, os.path.join(wav_dir, 'step-{}-wave-from-linear.wav'.format(step)), sr=hparams.sample_rate)
 
-				else:
-					input_seq, mel_prediction, alignment, target, target_length = sess.run([model.inputs[0],
-						model.mel_outputs[0],
-						model.alignments[0],
-						model.mel_targets[0],
-						model.targets_lengths[0],
-						])
+					else:
+						input_seq, mel_prediction, alignment, target, target_length = sess.run([model.inputs[0],
+							model.mel_outputs[0],
+							model.alignments[0],
+							model.mel_targets[0],
+							model.targets_lengths[0],
+							])
 
 					#save predicted mel spectrogram to disk (debug)
 					mel_filename = 'mel-prediction-step-{}.npy'.format(step)
